@@ -11,6 +11,7 @@ const {
   stat,
   read,
   sep,
+  getCurrentExecutionFileDirectory,
 } = require('./ioutils.cjs')
 const { createHtmlTemplateFunction } = require('./html.js')
 
@@ -88,7 +89,7 @@ const DefaultConfig = {
   // any path resolving on them
   virtualModulePrefix: '$app',
 
-  prepareServer(scope, config) {},
+  prepareServer(scope, config) { },
 
   async prepareClient(entries, scope, config) {
     const clientModule = entries.ssr
@@ -238,12 +239,19 @@ function resolveClientModule(root) {
 
 function resolveRoot(distDir, path) {
   let root = path
-  if (root.startsWith('file:')) {
+
+  if (root.startsWith("file:")) {
     root = fileURLToPath(root)
   }
+
+  if (!exists(root)) {
+    root = distDir
+  }
+
   if (stat(root).isFile()) {
     root = dirname(root)
   }
+
   return root
 }
 
@@ -321,7 +329,9 @@ async function determineOutDirRoot(vite) {
   const { usePathsRelativeToAppRoot } = vite.fastify
   if (usePathsRelativeToAppRoot) {
     const { packageDirectory } = await import('package-directory')
-    return await packageDirectory()
+    return await packageDirectory({
+      cwd: getCurrentExecutionFileDirectory()
+    })
   }
   return vite.root
 }
@@ -332,10 +342,10 @@ async function resolveSSRBundle({ dev, vite }) {
 
   if (!dev) {
     if (vite.fastify) {
-      clientOutDir = resolveIfRelative(vite.fastify.outDirs.client, await determineOutDirRoot(vite))
+      clientOutDir = await resolveIfRelative(vite.fastify.outDirs.client, await determineOutDirRoot(vite))
     } else {
       // Backwards compatibility for projects that do not use the viteFastify plugin.
-      bundle.dir = resolveIfRelative(vite.build.outDir, vite.root)
+      bundle.dir = await resolveIfRelative(vite.build.outDir, vite.root)
       clientOutDir = resolve(bundle.dir, 'client')
     }
 
@@ -369,10 +379,10 @@ async function resolveSPABundle({ dev, vite }) {
     let clientOutDir
 
     if (vite.fastify) {
-      clientOutDir = resolveIfRelative(vite.fastify.outDirs.client, await determineOutDirRoot(vite))
+      clientOutDir = await resolveIfRelative(vite.fastify.outDirs.client, await determineOutDirRoot(vite))
     } else {
       // Backwards compatibility for projects that do not use the viteFastify plugin.
-      bundle.dir = resolveIfRelative(vite.build.outDir, vite.root)
+      bundle.dir = await resolveIfRelative(vite.build.outDir, vite.root)
       clientOutDir = resolve(bundle.dir, 'client')
     }
 

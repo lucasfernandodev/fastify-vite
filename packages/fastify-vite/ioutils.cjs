@@ -12,8 +12,27 @@ const {
 const { ensureDir, remove } = require('fs-extra')
 const klaw = require('klaw')
 
-function resolveIfRelative(p, root) {
-  return isAbsolute(p) ? p : resolve(root, p)
+function getCurrentExecutionFileDirectory() {
+  const entryFile = (require.main && require.main.filename) || process.argv[1]
+  return resolve(dirname(resolve(entryFile)))
+}
+
+async function resolveIfRelative(p, root) {
+  if (isAbsolute(p)) {
+    return p
+  }
+
+  if (isAbsolute(root)) {
+    return resolve(root, p)
+  }
+
+  const { packageDirectory } = await import('package-directory')
+  const outDirRoot = await packageDirectory({
+    cwd: getCurrentExecutionFileDirectory()
+  })
+
+  const target = resolve(outDirRoot, root, p)
+  return target
 }
 
 async function* walk(dir, ignorePatterns = []) {
@@ -43,6 +62,7 @@ module.exports = {
   remove,
   isAbsolute,
   sep,
+  getCurrentExecutionFileDirectory,
   write: writeFile,
   read: readFile,
   exists: existsSync,
